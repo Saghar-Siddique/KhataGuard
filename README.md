@@ -1,10 +1,16 @@
 # 📒 KhataGuard
 
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)]()
+[![Groq](https://img.shields.io/badge/AI-Groq%20%7C%20Whisper-F55036)]()
+
 **AI-Powered Digital Khata** — speak or snap, and the ledger writes itself.
 
 KhataGuard turns voice notes and receipt photos into ledger entries. Its AI
 pipeline (Groq) understands Urdu, Roman Urdu and English, matches customers
-fuzzily, and guards against duplicates and overpayments.
+fuzzily, and guards against duplicates and overpayments. Built for the way
+Pakistani shopkeepers actually work — no typing, no English required.
 
 ## Features
 
@@ -14,7 +20,7 @@ fuzzily, and guards against duplicates and overpayments.
 - 💰 **Transactions** — overpayment guard with explicit advance-payment flow
 - 📒 **Ledger** — per-customer history
 - 📊 **Reports** — Plotly charts + PDF statements (ReportLab)
-- 🧪 **Quality** — 13 regression tests, 32-case parser eval
+- 🧪 **Quality** — 29 regression tests, 32-case parser eval
   (Urdu / Roman Urdu / English, incl. must-clarify and prompt-injection cases)
 
 ## Tech stack
