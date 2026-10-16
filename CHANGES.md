@@ -19,7 +19,7 @@
   (401/429/...) now reach the user instead of a generic message.
 
 ## Quality
-- `tests/test_fixes.py`: 13 regression tests.
+- `tests/`: 29 regression tests total (incl. 13 in `test_fixes.py` from this patch).
 - `evals/run_parser_eval.py` + `parser_cases.jsonl`: 32 Urdu/Roman-Urdu/English cases
   (20 extraction, 12 must-clarify incl. a prompt-injection case). Run with `GROQ_API_KEY` set.
 

@@ -2,7 +2,9 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![CI](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
 [![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)]()
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Groq](https://img.shields.io/badge/AI-Groq%20%7C%20Whisper-F55036)]()
 
 **AI-Powered Digital Khata** — speak or snap, and the ledger writes itself.
