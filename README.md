@@ -14,6 +14,8 @@ pipeline (Groq) understands Urdu, Roman Urdu and English, matches customers
 fuzzily, and guards against duplicates and overpayments. Built for the way
 Pakistani shopkeepers actually work — no typing, no English required.
 
+🏆 Built during the **Pak Angels Generative & Agentic AI Training** (Cohort 11) — awarded **Top Performer**.
+
 ## Features
 
 - 🎙️ **Voice / Image input** → AI transaction parsing
