@@ -24,7 +24,7 @@ Pakistani shopkeepers actually work — no typing, no English required.
 - 💰 **Transactions** — overpayment guard with explicit advance-payment flow
 - 📒 **Ledger** — per-customer history
 - 📊 **Reports** — Plotly charts + PDF statements (ReportLab)
-- 🧪 **Quality** — 29 regression tests, 32-case parser eval; CI runs the suite on every push and PR
+- 🧪 **Quality** — 29 regression tests, 32-case parser eval (**84% accuracy**, measured Oct 2026); CI runs the suite on every push and PR
   (Urdu / Roman Urdu / English, incl. must-clarify and prompt-injection cases)
 
 ## Tech stack
