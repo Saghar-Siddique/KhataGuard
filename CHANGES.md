@@ -1,4 +1,4 @@
-# Changes in this version
+# Changes in v1.0.0 (Oct 19, 2026)
 
 ## Data integrity
 - **Duplicate customers blocked** (`add_customer`, `update_customer`): names compare case- and

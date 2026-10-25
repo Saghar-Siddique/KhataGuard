@@ -3,9 +3,9 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![CI](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
-[![Groq](https://img.shields.io/badge/AI-Groq%20%7C%20Whisper-F55036)]()
+[![Groq](https://img.shields.io/badge/AI-Groq%20%7C%20Whisper-F55036)](https://groq.com/)
 
 **AI-Powered Digital Khata** — speak or snap, and the ledger writes itself.
 
@@ -26,6 +26,12 @@ Pakistani shopkeepers actually work — no typing, no English required.
 - 📊 **Reports** — Plotly charts + PDF statements (ReportLab)
 - 🧪 **Quality** — 29 regression tests, 32-case parser eval (**84% accuracy**, measured Oct 2026); CI runs the suite on every push and PR
   (Urdu / Roman Urdu / English, incl. must-clarify and prompt-injection cases)
+
+## Screenshots
+
+![Dashboard overview](docs/screenshots/01-dashboard-overview.png)
+![Customer ledger](docs/screenshots/02-customer-ledger.png)
+![Add transaction](docs/screenshots/03-add-transaction.png)
 
 ## Tech stack
 
@@ -54,14 +60,17 @@ app.py                  # Home dashboard (metrics + navigation)
 pages/                  # 1_Customers, 2_Transactions, 3_Ledger, 4_Voice_Image, 5_Reports
 backend/
   database/             # SQLite init + schema (initialize_database)
-  core/                 # customer summaries, business logic
+  core.py               # customer summaries, business logic
   ai/                   # Groq-powered transaction parser
   features/             # voice/OCR matching, media, reports, demo-data seeding
 tests/                  # regression tests (pytest)
 evals/                  # parser accuracy eval (32 cases)
 requirements.txt
 KhataGuard_Mobile_Test.ipynb   # phone testing via Google Colab + LocalTunnel
+CHANGES.md                     # release notes (v1.0.0)
 ```
+
+Release notes: [CHANGES.md](CHANGES.md).
 
 ## Demo data
 
