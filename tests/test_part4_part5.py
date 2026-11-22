@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,7 +15,21 @@ from PIL import Image
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from backend.database import database
 from backend.features import media
+
+
+@pytest.fixture
+def db():
+    # Issue #3: transcribe/OCR now write usage rows, so these tests run
+    # against a throwaway database instead of the real khata.db.
+    tmp = tempfile.TemporaryDirectory()
+    original = database.DATABASE_PATH
+    database.DATABASE_PATH = Path(tmp.name) / "t.db"
+    database.initialize_database()
+    yield
+    database.DATABASE_PATH = original
+    tmp.cleanup()
 from backend.features.integration import IntegrationError, save_confirmed_transaction
 from backend.features.reports import (
     backup_json,
@@ -72,7 +87,7 @@ def test_existing_parser_pipeline_preserves_parser_as_dependency():
     assert calls["model"] == "existing-model"
 
 
-def test_transcription_api_contract_is_direct_groq(monkeypatch):
+def test_transcription_api_contract_is_direct_groq(db, monkeypatch):
     captured = {}
 
     class FakeResponse:
@@ -96,7 +111,7 @@ def test_transcription_api_contract_is_direct_groq(monkeypatch):
     assert captured["files"]["file"][0] == "recording.wav"
 
 
-def test_transcription_rate_limit_error_is_exposed(monkeypatch):
+def test_transcription_rate_limit_error_is_exposed(db, monkeypatch):
     class FakeResponse:
         status_code = 429
         text = ""
@@ -108,7 +123,7 @@ def test_transcription_rate_limit_error_is_exposed(monkeypatch):
         media.transcribe_audio(audio_bytes=b"RIFF" + b"0" * 100, filename="recording.wav", api_key="x")
 
 
-def test_vision_api_contract_and_ocr_text(monkeypatch):
+def test_vision_api_contract_and_ocr_text(db, monkeypatch):
     captured = {}
 
     class FakeResponse:

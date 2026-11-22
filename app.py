@@ -24,12 +24,13 @@ c4.metric("Active Customers", f"{len(summaries)}")
 st.divider()
 
 st.subheader("Quick Actions")
-a1,a2,a3,a4,a5=st.columns(5)
+a1,a2,a3,a4,a5,a6=st.columns(6)
 if a1.button("➕ Customers", use_container_width=True): st.switch_page("pages/1_Customers.py")
 if a2.button("💰 Transactions", use_container_width=True): st.switch_page("pages/2_Transactions.py")
 if a3.button("📒 Ledger", use_container_width=True): st.switch_page("pages/3_Ledger.py")
 if a4.button("🎙️ Voice / Image", use_container_width=True): st.switch_page("pages/4_Voice_Image.py")
 if a5.button("📊 Reports", use_container_width=True): st.switch_page("pages/5_Reports.py")
+if a6.button("⚙️ Settings", use_container_width=True): st.switch_page("pages/6_Settings.py")
 
 st.divider()
 if summaries:

@@ -3,7 +3,9 @@
 Non-destructive design:
 - Audio/image bytes are sent to Groq only when the caller explicitly invokes a function.
 - Existing Part 3 transaction parser is injected as a callable; its prompt is not copied or changed here.
-- No database write happens in this module.
+- No ledger write happens in this module. Usage rows for the Issue #3
+  cost guard are the only database writes here, and only after a paid
+  call succeeds (or when the daily cap blocks one).
 """
 from __future__ import annotations
 
@@ -19,6 +21,53 @@ from pathlib import Path
 from typing import Any, Callable
 
 from PIL import Image, UnidentifiedImageError
+
+from backend.features import cost_guard
+
+
+ALLOWED_AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a"}
+ALLOWED_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg"}
+MAX_AUDIO_BYTES = 24 * 1024 * 1024  # stay below Groq free-tier 25 MB boundary
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+DEFAULT_SPEECH_MODEL = "whisper-large-v3-turbo"
+DEFAULT_VISION_MODEL = "qwen/qwen3.6-27b"
+
+
+def _record_parse_usage(call_id_before: int, usage_connection: Any = None) -> None:
+    """Record the parser chat cost (Issue #3) when the injected parser is
+    the Part 3 module and its Groq call advanced. Best-effort: a logging
+    failure must never break the parse result."""
+    try:
+        from backend.ai import parser as parser_module
+
+        usage = getattr(parser_module, "LAST_USAGE", None) or {}
+        if int(usage.get("call_id", 0) or 0) <= call_id_before:
+            return
+        cost, detail = cost_guard.estimate_chat_cost_pkr(
+            str(usage.get("model", "")),
+            int(usage.get("prompt_tokens", 0) or 0),
+            int(usage.get("completion_tokens", 0) or 0),
+        )
+        cost_guard.record_usage("parse", cost, detail, connection=usage_connection)
+    except Exception:
+        pass
+
+
+def _parse_call_id() -> int:
+    try:
+        from backend.ai import parser as parser_module
+
+        return int((getattr(parser_module, "LAST_USAGE", {}) or {}).get("call_id", 0))
+    except Exception:
+        return 0
+
+
+def _record_usage_best_effort(kind: str, cost: float, detail: str, usage_connection: Any = None) -> None:
+    """Usage logging must never break the API result it follows."""
+    try:
+        cost_guard.record_usage(kind, cost, detail, connection=usage_connection)
+    except Exception:
+        pass
 
 
 ALLOWED_AUDIO_SUFFIXES = {".wav", ".mp3", ".m4a"}
@@ -133,11 +182,18 @@ def transcribe_audio(
     speech_model: str = DEFAULT_SPEECH_MODEL,
     language: str | None = None,
     timeout: float = 60.0,
+    usage_connection: Any = None,
 ) -> str:
-    """Transcribe Urdu/Roman Urdu/English audio using Groq Whisper."""
+    """Transcribe Urdu/Roman Urdu/English audio using Groq Whisper.
+
+    Issue #3: blocked when the daily AI spend cap is hit (raises
+    CostCapExceeded); the estimated cost is recorded after success.
+    """
     validate_audio(audio_bytes, filename)
     if not api_key or not api_key.strip():
         raise MediaProcessingError("GROQ_API_KEY missing hai.")
+
+    cost_guard.ensure_under_cap("voice", connection=usage_connection)
 
     data = {"model": speech_model, "response_format": "json", "temperature": "0"}
     if language in {"ur", "en"}:
@@ -168,6 +224,8 @@ def transcribe_audio(
 
     if not text:
         raise MediaProcessingError("Audio se koi text nahi mila.")
+    cost, detail = cost_guard.estimate_stt_cost_pkr(audio_bytes, filename, speech_model)
+    _record_usage_best_effort("stt", cost, detail, usage_connection)
     return text
 
 
@@ -178,16 +236,22 @@ def ocr_handwritten_image(
     api_key: str,
     vision_model: str = DEFAULT_VISION_MODEL,
     timeout: float = 60.0,
+    usage_connection: Any = None,
 ) -> str:
     """Read a handwritten khata image into text only using Groq Vision.
 
     Uses Groq's documented chat-completions vision format directly. This avoids
     SDK-version differences and returns the real HTTP/API error to the UI.
-    No database write happens here.
+    No ledger write happens here.
+
+    Issue #3: blocked when the daily AI spend cap is hit; the estimated
+    cost is recorded after success (from the usage Groq reports).
     """
     mime = validate_image(image_bytes, filename)
     encoded = base64.b64encode(image_bytes).decode("ascii")
     data_url = f"data:{mime};base64,{encoded}"
+
+    cost_guard.ensure_under_cap("image", connection=usage_connection)
 
     system_prompt = (
         "You are an OCR reader for a Pakistani shop ledger. Read the handwritten or printed "
@@ -272,6 +336,14 @@ def ocr_handwritten_image(
                 "Vision model ka token budget reasoning mein khatam ho gaya. Dobara try karein."
             )
         raise MediaProcessingError("Image se readable text nahi mila.")
+    usage = body.get("usage") if isinstance(body, dict) else None
+    if isinstance(usage, dict):
+        cost, detail = cost_guard.estimate_chat_cost_pkr(
+            vision_model,
+            int(usage.get("prompt_tokens", 0) or 0),
+            int(usage.get("completion_tokens", 0) or 0),
+        )
+        _record_usage_best_effort("ocr", cost, detail, usage_connection)
     return text
 
 def _call_existing_parser(
@@ -355,9 +427,11 @@ def parse_with_existing_ai(
     parser: Callable[..., Any],
     api_key: str,
     text_model: str,
+    usage_connection: Any = None,
 ) -> ParsedTransaction:
     if not text or not text.strip():
         raise MediaProcessingError("AI ko bhejne ke liye text khaali hai.")
+    call_id_before = _parse_call_id()
     try:
         raw = _call_existing_parser(
             parser,
@@ -376,7 +450,9 @@ def parse_with_existing_ai(
         if isinstance(status, int):
             raise MediaProcessingError(_groq_error_message(status, detail, "AI parser")) from exc
         raise MediaProcessingError(f"AI parser failed ({type(exc).__name__}): {detail}") from exc
-    return normalize_parser_result(raw)
+    result = normalize_parser_result(raw)
+    _record_parse_usage(call_id_before, usage_connection)
+    return result
 
 
 def parse_many_with_existing_ai(
@@ -385,6 +461,7 @@ def parse_many_with_existing_ai(
     parser: Callable[..., Any],
     api_key: str,
     text_model: str,
+    usage_connection: Any = None,
 ) -> list[ParsedTransaction]:
     """Parse every transaction in one input via a multi-transaction parser (Issue #2).
 
@@ -394,6 +471,7 @@ def parse_many_with_existing_ai(
     """
     if not text or not text.strip():
         raise MediaProcessingError("AI ko bhejne ke liye text khaali hai.")
+    call_id_before = _parse_call_id()
     try:
         raw = _call_existing_parser(
             parser,
@@ -412,4 +490,6 @@ def parse_many_with_existing_ai(
         if isinstance(status, int):
             raise MediaProcessingError(_groq_error_message(status, detail, "AI parser")) from exc
         raise MediaProcessingError(f"AI parser failed ({type(exc).__name__}): {detail}") from exc
-    return normalize_parser_results(raw)
+    results = normalize_parser_results(raw)
+    _record_parse_usage(call_id_before, usage_connection)
+    return results
