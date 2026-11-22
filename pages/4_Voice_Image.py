@@ -5,22 +5,28 @@ from datetime import date
 
 import streamlit as st
 
-from backend.core import create_customer, list_customers, record_payment, record_sale
-from backend.features.integration import save_confirmed_transaction
+from backend.core import (
+    create_customer,
+    get_customer_balance,
+    list_customers,
+    record_payment,
+    record_sale,
+)
+from backend.features.integration import save_confirmed_transactions
 from backend.features.matching import rank_customers
 from backend.features.media import (
     DEFAULT_SPEECH_MODEL,
     DEFAULT_VISION_MODEL,
     MediaProcessingError,
     ocr_handwritten_image,
-    parse_with_existing_ai,
+    parse_many_with_existing_ai,
     transcribe_audio,
 )
 
 try:
-    from backend.ai.parser import parse_transaction
+    from backend.ai.parser import parse_transactions
 except Exception:
-    parse_transaction = None
+    parse_transactions = None
 
 
 st.set_page_config(page_title="Voice & Image - KhataGuard", page_icon="🎙️", layout="wide")
@@ -35,26 +41,30 @@ def setting(name: str, default: str = "") -> str:
         return os.getenv(name) or default
 
 
-def set_draft(source_text: str, source_kind: str) -> None:
-    if parse_transaction is None:
+def set_drafts(source_text: str, source_kind: str) -> None:
+    """Parse every transaction in the text into a batch of drafts (Issue #2)."""
+    if parse_transactions is None:
         raise MediaProcessingError(
-            "backend.ai.parser.parse_transaction nahi mila. Part 3 parser ko project mein same path par rakhein."
+            "backend.ai.parser.parse_transactions nahi mila. Part 3 parser ko project mein same path par rakhein."
         )
-    result = parse_with_existing_ai(
+    results = parse_many_with_existing_ai(
         text=source_text,
-        parser=parse_transaction,
+        parser=parse_transactions,
         api_key=setting("GROQ_API_KEY"),
         text_model=setting("GROQ_MODEL", "openai/gpt-oss-20b"),
     )
     st.session_state["p4_draft_n"] = st.session_state.get("p4_draft_n", 0) + 1
-    st.session_state["p4_draft"] = {
-        "customer": result.customer,
-        "sale": result.sale,
-        "paid": result.paid,
-        "date": date.today(),
-        "source_text": source_text,
-        "source_kind": source_kind,
-    }
+    st.session_state["p4_drafts"] = [
+        {
+            "customer": result.customer,
+            "sale": result.sale,
+            "paid": result.paid,
+            "date": date.today(),
+            "source_text": source_text,
+            "source_kind": source_kind,
+        }
+        for result in results
+    ]
 
 
 api_key = setting("GROQ_API_KEY")
@@ -88,7 +98,7 @@ with voice_tab:
                         language=language,
                     )
                     st.session_state["p4_transcript"] = text
-                    set_draft(text, "voice")
+                    set_drafts(text, "voice")
                 st.success("Draft ready hai. Neeche verify karein.")
             except Exception as exc:
                 st.error(str(exc))
@@ -105,7 +115,7 @@ with voice_tab:
                         language=language,
                     )
                     st.session_state["p4_transcript"] = text
-                    set_draft(text, "voice_upload")
+                    set_drafts(text, "voice_upload")
                 st.success("Draft ready hai. Neeche verify karein.")
             except Exception as exc:
                 st.error(str(exc))
@@ -133,7 +143,7 @@ with image_tab:
                     vision_model=setting("GROQ_VISION_MODEL", DEFAULT_VISION_MODEL),
                 )
                 st.session_state["p4_ocr_text"] = ocr_text
-                set_draft(ocr_text, "image")
+                set_drafts(ocr_text, "image")
             st.success("Image draft ready hai. Neeche verify karein.")
         except Exception as exc:
             st.error(str(exc))
@@ -148,97 +158,115 @@ with image_tab:
 st.divider()
 st.subheader("✅ Verify before saving")
 
-draft = st.session_state.get("p4_draft")
+drafts = st.session_state.get("p4_drafts")
 NEW_CUSTOMER = "__new__"
-if not draft:
+if not drafts:
     st.info("Voice ya image process karne ke baad editable draft yahan appear hoga.")
 else:
     n = st.session_state.get("p4_draft_n", 0)
     all_customers = [dict(c) for c in list_customers()]
     by_id = {int(c["id"]): c for c in all_customers}
-    matches = rank_customers(draft["customer"], all_customers)
-    exact = [m for m in matches if m.kind == "exact"]
-
-    # Options: explicit placeholder, ranked existing customers, then "create new".
-    options = [None] + [m.customer_id for m in matches] + [NEW_CUSTOMER]
-    if len(exact) == 1:
-        default_index = options.index(exact[0].customer_id)
-    elif not matches:
-        default_index = options.index(NEW_CUSTOMER)
-    else:
-        default_index = 0  # similar names found but none exact: user must choose
-
-    def customer_label(option):
-        if option is None:
-            return "— Select customer —"
-        if option == NEW_CUSTOMER:
-            return f"➕ Create NEW customer '{draft['customer']}'"
-        c = by_id[option]
-        match = next((m for m in matches if m.customer_id == option), None)
-        hint = f"  (similarity {match.score:.0%})" if match and match.kind != "exact" else ""
-        return f"{c['name']}{hint}"
-
-    st.caption(f"Source: {draft['source_kind']}. Save se pehle har field check karein.")
-    if matches and not exact:
-        st.warning(
-            f"AI ne naam '{draft['customer']}' suna/parha. Milte-julte customers mil gaye hain; "
-            "sahi customer select karein, ya naya banayein."
-        )
+    if len(drafts) > 1:
+        st.caption(f"{len(drafts)} transactions mileen — ek hi confirmation se saari save hongi.")
+    rows = []
     with st.form("p4_review_form"):
-        choice = st.selectbox(
-            "Customer",
-            options,
-            index=default_index,
-            format_func=customer_label,
-            key=f"p4_customer_choice_{n}",
+        for i, draft in enumerate(drafts):
+            matches = rank_customers(draft["customer"], all_customers)
+            exact = [m for m in matches if m.kind == "exact"]
+
+            # Options: explicit placeholder, ranked existing customers, then "create new".
+            options = [None] + [m.customer_id for m in matches] + [NEW_CUSTOMER]
+            if len(exact) == 1:
+                default_index = options.index(exact[0].customer_id)
+            elif not matches:
+                default_index = options.index(NEW_CUSTOMER)
+            else:
+                default_index = 0  # similar names found but none exact: user must choose
+
+            def customer_label(option, _draft=draft, _matches=matches):
+                if option is None:
+                    return "— Select customer —"
+                if option == NEW_CUSTOMER:
+                    return f"➕ Create NEW customer '{_draft['customer']}'"
+                c = by_id[option]
+                match = next((m for m in _matches if m.customer_id == option), None)
+                hint = f"  (similarity {match.score:.0%})" if match and match.kind != "exact" else ""
+                return f"{c['name']}{hint}"
+
+            st.subheader(f"Transaction {i + 1} — {draft['customer']}")
+            st.caption(f"Source: {draft['source_kind']}. Save se pehle har field check karein.")
+            if matches and not exact:
+                st.warning(
+                    f"AI ne naam '{draft['customer']}' suna/parha. Milte-julte customers mil gaye hain; "
+                    "sahi customer select karein, ya naya banayein."
+                )
+            choice = st.selectbox(
+                "Customer",
+                options,
+                index=default_index,
+                format_func=customer_label,
+                key=f"p4_customer_choice_{n}_{i}",
+            )
+            new_name = st.text_input(
+                "New customer name (sirf tab use hoga jab 'Create NEW' select ho)",
+                value=draft["customer"],
+                key=f"p4_new_name_{n}_{i}",
+            )
+            c1, c2 = st.columns(2)
+            sale = c1.number_input("Sale (Rs.)", min_value=0.0, value=float(draft["sale"]), step=100.0, key=f"p4_sale_{n}_{i}")
+            paid = c2.number_input("Paid / Received (Rs.)", min_value=0.0, value=float(draft["paid"]), step=100.0, key=f"p4_paid_{n}_{i}")
+            advance = st.checkbox(
+                "Advance payment (customer ke outstanding balance se zyada payment)",
+                value=False,
+                key=f"p4_adv_{n}_{i}",
+            )
+            rows.append({
+                "choice": choice, "new_name": new_name,
+                "sale": sale, "paid": paid, "advance": advance,
+                "draft": draft,
+            })
+        tx_date = st.date_input("Transaction date", value=drafts[0]["date"], key=f"p4_date_{n}")
+        note = st.text_input("Description / note", value=drafts[0]["source_text"][:250], key=f"p4_note_{n}")
+        save = st.form_submit_button(
+            f"Confirm & Save All ({len(drafts)})", use_container_width=True
         )
-        new_name = st.text_input(
-            "New customer name (sirf tab use hoga jab 'Create NEW' select ho)",
-            value=draft["customer"],
-            key=f"p4_new_name_{n}",
-        )
-        c1, c2 = st.columns(2)
-        sale = c1.number_input("Sale (Rs.)", min_value=0.0, value=float(draft["sale"]), step=100.0, key=f"p4_sale_{n}")
-        paid = c2.number_input("Paid / Received (Rs.)", min_value=0.0, value=float(draft["paid"]), step=100.0, key=f"p4_paid_{n}")
-        advance = st.checkbox(
-            "Advance payment (customer ke outstanding balance se zyada payment)",
-            value=False,
-            key=f"p4_adv_{n}",
-        )
-        tx_date = st.date_input("Transaction date", value=draft["date"], key=f"p4_date_{n}")
-        note = st.text_input("Description / note", value=draft["source_text"][:250], key=f"p4_note_{n}")
-        save = st.form_submit_button("Confirm & Save Transaction", use_container_width=True)
 
     if save:
         try:
-            if choice is None:
-                raise ValueError("Pehle customer select karein (ya 'Create NEW' chunein).")
-            if choice == NEW_CUSTOMER:
-                name = new_name.strip()
-                if not name:
-                    raise ValueError("Naye customer ka naam required hai.")
-                if sale <= 0 and not advance:
-                    raise ValueError(
-                        "Naye customer ka balance 0 hai, is liye sirf payment save nahi ho sakti. "
-                        "Sale add karein ya 'Advance payment' tick karein."
-                    )
-                customer_id = create_customer(name=name)  # raises if the name already exists
-                customer = {"id": customer_id, "name": " ".join(name.split())}
-            else:
-                customer = by_id[int(choice)]
-            saved = save_confirmed_transaction(
-                customer_id=int(customer["id"]),
-                customer_name=str(customer["name"]),
-                sale=sale,
-                paid=paid,
+            items = []
+            for j, row in enumerate(rows):
+                if row["choice"] is None:
+                    raise ValueError(f"Transaction {j + 1}: pehle customer select karein (ya 'Create NEW' chunein).")
+                if row["choice"] == NEW_CUSTOMER:
+                    name = row["new_name"].strip()
+                    if not name:
+                        raise ValueError(f"Transaction {j + 1}: naye customer ka naam required hai.")
+                    if row["sale"] <= 0 and not row["advance"]:
+                        raise ValueError(
+                            f"Transaction {j + 1}: naye customer ka balance 0 hai, is liye sirf payment "
+                            "save nahi ho sakti. Sale add karein ya 'Advance payment' tick karein."
+                        )
+                    customer_id = create_customer(name=name)  # raises if the name already exists
+                    customer = {"id": customer_id, "name": " ".join(name.split())}
+                else:
+                    customer = by_id[int(row["choice"])]
+                items.append({
+                    "customer_id": int(customer["id"]),
+                    "customer_name": str(customer["name"]),
+                    "sale": row["sale"],
+                    "paid": row["paid"],
+                    "allow_overpayment": row["advance"],
+                })
+            saved = save_confirmed_transactions(
+                items,
                 transaction_date=tx_date,
                 description=note,
                 record_sale=record_sale,
                 record_payment=record_payment,
-                allow_overpayment=advance,
+                get_balance=get_customer_balance,
             )
-            st.session_state.pop("p4_draft", None)
-            st.success("Transaction database mein save ho gayi.")
+            st.session_state.pop("p4_drafts", None)
+            st.success(f"{len(saved)} transactions database mein save ho gayeen.")
             st.write(saved)
         except Exception as exc:
             st.error(f"Save nahi hui: {exc}")

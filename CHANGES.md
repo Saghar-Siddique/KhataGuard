@@ -11,6 +11,23 @@
   `get_customer_ledger`, totals, outstanding customers, customer summaries).
 - 13 new tests in `tests/test_audit_log.py` (42 total).
 
+## Unreleased (Issue #2 — multiple transactions in one voice input)
+
+- **`parse_transactions`** (`backend/ai/parser.py`): one Groq call extracts EVERY
+  transaction in the input as a list (max 10). A single input still returns a
+  one-item list. Any unclear item refuses the whole batch (clarification
+  question) — a half-parsed batch is never saved. `parse_transaction` is
+  unchanged for existing callers.
+- **Batch confirm/save** (`backend/features/integration.py`,
+  `backend/features/media.py`, Voice/Image page): the review screen shows one
+  row per transaction with a single "Confirm & Save All (N)" button.
+  `save_confirmed_transactions` validates the WHOLE batch first (amounts +
+  overpayment against the projected balance, so a sale earlier in the batch
+  funds a later payment) and only then saves — one bad row saves nothing.
+- Parser eval is now 36 cases (20 extract + 4 multi + 12 clarify); `--dry`
+  passes 36/36. Live accuracy re-run needs GROQ_API_KEY (not set here).
+- 16 new tests in `tests/test_multi_transaction.py` (58 total).
+
 # Changes in v1.0.0 (Oct 19, 2026)
 
 ## Data integrity

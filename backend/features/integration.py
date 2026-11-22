@@ -65,3 +65,73 @@ def save_confirmed_transaction(
     else:
         raise IntegrationError("record_payment customer identifier support nahi karta.")
     return record_payment(**kwargs)
+
+
+def save_confirmed_transactions(
+    items,
+    *,
+    transaction_date: date,
+    description: str,
+    record_sale: Callable[..., Any],
+    record_payment: Callable[..., Any],
+    get_balance: Callable[[int], float] | None = None,
+) -> list:
+    """Save a confirmed batch in one go (Issue #2).
+
+    items: list of dicts with customer_id, customer_name, sale, paid and
+    optional allow_overpayment. The WHOLE batch is validated before anything
+    is written, so one bad row cannot leave a half-saved batch. Overpayment
+    is checked against the projected balance: the live balance plus earlier
+    items in the batch (a sale earlier in the batch raises the balance a
+    later payment can draw on). Returns the per-item save results, in order.
+    """
+    if not items:
+        raise IntegrationError("Save karne ke liye koi transaction nahi hai.")
+
+    # ---- validate the whole batch first (no writes yet) ----
+    projected: dict[int, float] = {}
+    for index, item in enumerate(items, start=1):
+        label = f"Row {index} ({item.get('customer_name', '?')})"
+        try:
+            sale = float(item.get("sale", 0))
+            paid = float(item.get("paid", 0))
+        except (TypeError, ValueError):
+            raise IntegrationError(f"{label}: amounts valid numbers hone chahiye.")
+        if sale < 0 or paid < 0 or (sale == 0 and paid == 0):
+            raise IntegrationError(f"{label}: sale/payment amounts invalid hain.")
+        if sale > 0 and paid > sale:
+            raise IntegrationError(f"{label}: paid new sale se zyada nahi ho sakta.")
+        customer_id = item.get("customer_id")
+        if customer_id is None:
+            raise IntegrationError(f"{label}: customer select karein.")
+        if get_balance is not None and sale == 0 and not item.get("allow_overpayment"):
+            if customer_id not in projected:
+                projected[customer_id] = float(get_balance(int(customer_id)))
+            if paid > max(projected[customer_id], 0.0) + 0.005:
+                raise IntegrationError(
+                    f"{label}: payment Rs. {paid:,.2f} outstanding balance "
+                    f"(Rs. {max(projected[customer_id], 0.0):,.2f}) se zyada hai. "
+                    "Advance payment tick karein ya amount theek karein."
+                )
+        if customer_id not in projected and get_balance is not None:
+            projected[customer_id] = float(get_balance(int(customer_id)))
+        if customer_id in projected:
+            projected[customer_id] += sale - paid
+
+    # ---- all valid: save in order ----
+    results = []
+    for item in items:
+        results.append(
+            save_confirmed_transaction(
+                customer_id=int(item["customer_id"]),
+                customer_name=str(item["customer_name"]),
+                sale=float(item.get("sale", 0)),
+                paid=float(item.get("paid", 0)),
+                transaction_date=transaction_date,
+                description=description,
+                record_sale=record_sale,
+                record_payment=record_payment,
+                allow_overpayment=bool(item.get("allow_overpayment", False)),
+            )
+        )
+    return results
