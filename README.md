@@ -98,5 +98,5 @@ LocalTunnel. Put your Groq key in Colab Secrets (never in the notebook).
 
 - No authentication; SQLite on ephemeral hosts (Colab / Streamlit Cloud) loses data
 - One transaction per input (multi-entry page photos are rejected)
-- No audit log / undo; no API cost guard
+- No API cost guard
 - Urdu text in PDF statements needs an Arabic-shaping font (falls back to Helvetica)

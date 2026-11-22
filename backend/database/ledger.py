@@ -54,6 +54,7 @@ def get_customer_balance(customer_id):
                 ) AS balance
             FROM transactions
             WHERE customer_id = ?
+              AND voided = 0
             """,
             (customer_id,)
         )
@@ -105,7 +106,9 @@ def get_customer_ledger(customer_id):
                 amount,
                 description,
                 transaction_date,
-                created_at
+                created_at,
+                voided,
+                voided_at
             FROM transactions
             WHERE customer_id = ?
             ORDER BY transaction_date ASC, id ASC
@@ -119,6 +122,26 @@ def get_customer_ledger(customer_id):
         balance = 0.0
 
         for transaction in transactions:
+
+            # Voided entries stay visible in the ledger (marked void)
+            # but never move the running balance (Issue #1).
+            if transaction["voided"]:
+                ledger.append(
+                    {
+                        "id": transaction["id"],
+                        "customer_id": transaction["customer_id"],
+                        "type": transaction["type"],
+                        "amount": float(transaction["amount"]),
+                        "description": transaction["description"],
+                        "transaction_date": transaction["transaction_date"],
+                        "debit": 0.0,
+                        "credit": 0.0,
+                        "balance": balance,
+                        "voided": 1,
+                        "voided_at": transaction["voided_at"],
+                    }
+                )
+                continue
 
             if transaction["type"] == "sale":
                 debit = float(transaction["amount"])
@@ -144,6 +167,8 @@ def get_customer_ledger(customer_id):
                     "debit": debit,
                     "credit": credit,
                     "balance": balance,
+                    "voided": 0,
+                    "voided_at": None,
                 }
             )
 
@@ -172,6 +197,7 @@ def get_total_sales():
             SELECT COALESCE(SUM(amount), 0) AS total_sales
             FROM transactions
             WHERE type = 'sale'
+              AND voided = 0
             """
         )
 
@@ -202,6 +228,7 @@ def get_total_received():
             SELECT COALESCE(SUM(amount), 0) AS total_received
             FROM transactions
             WHERE type = 'payment'
+              AND voided = 0
             """
         )
 
@@ -261,6 +288,7 @@ def get_outstanding_customers():
             FROM customers c
             LEFT JOIN transactions t
                 ON c.id = t.customer_id
+               AND t.voided = 0
             GROUP BY c.id, c.name, c.phone
             HAVING balance > 0
             ORDER BY balance DESC

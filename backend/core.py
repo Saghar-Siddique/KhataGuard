@@ -24,7 +24,11 @@ from .database.transactions import (
     get_customer_transactions,
     get_all_transactions,
     delete_transaction,
+    void_transaction,
+    undo_last_transaction,
 )
+
+from .database.audit import get_audit_log
 
 from .database.ledger import (
     get_customer_balance,
@@ -109,7 +113,8 @@ def record_sale(
     sale_amount,
     paid_amount=0,
     description=None,
-    transaction_date=None
+    transaction_date=None,
+    actor="owner"
 ):
     """
     Record a sale and optional payment for a customer.
@@ -188,7 +193,8 @@ def record_sale(
         transaction_type="sale",
         amount=sale_amount,
         description=description,
-        transaction_date=transaction_date
+        transaction_date=transaction_date,
+        actor=actor
     )
 
     # --------------------------------------------------------
@@ -204,7 +210,8 @@ def record_sale(
             transaction_type="payment",
             amount=paid_amount,
             description=description,
-            transaction_date=transaction_date
+            transaction_date=transaction_date,
+            actor=actor
         )
 
     # --------------------------------------------------------
@@ -233,7 +240,8 @@ def record_payment(
     amount,
     description=None,
     transaction_date=None,
-    allow_overpayment=False
+    allow_overpayment=False,
+    actor="owner"
 ):
     """
     Record a payment from an existing customer.
@@ -271,7 +279,8 @@ def record_payment(
         transaction_type="payment",
         amount=amount_value,
         description=description,
-        transaction_date=transaction_date
+        transaction_date=transaction_date,
+        actor=actor
     )
 
     balance = get_customer_balance(customer_id)
@@ -359,6 +368,10 @@ def get_customer_summaries():
 
         for transaction in transactions:
 
+            # Voided entries never count toward totals (Issue #1).
+            if transaction["voided"]:
+                continue
+
             if transaction["type"] == "sale":
                 total_sale += float(transaction["amount"])
 
@@ -409,3 +422,34 @@ def get_customers_for_ui(search=None):
         ]
 
     return summaries
+
+
+# ============================================================
+# Audit Log / Undo (Issue #1)
+# ============================================================
+
+def undo_last_entry(actor="owner"):
+    """
+    Void the most recent non-void ledger entry.
+
+    Returns the voided entry plus the customer's balance before/after.
+    The entry itself is never deleted.
+    """
+
+    return undo_last_transaction(actor=actor)
+
+
+def void_entry(transaction_id, actor="owner"):
+    """
+    Void one ledger entry by ID. Never deletes it.
+    """
+
+    return void_transaction(transaction_id, actor=actor)
+
+
+def get_recent_audit_log(limit=20):
+    """
+    Most recent audit entries, newest first.
+    """
+
+    return get_audit_log(limit=limit)
