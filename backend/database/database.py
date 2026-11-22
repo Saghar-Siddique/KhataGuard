@@ -99,6 +99,51 @@ def initialize_database():
             ON transactions(transaction_date)
         """)
 
+        # ----------------------------------------------------
+        # Audit Log Table (Issue #1)
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                actor TEXT NOT NULL DEFAULT 'owner',
+                action TEXT NOT NULL,
+                transaction_id INTEGER,
+                customer_id INTEGER,
+                before_json TEXT,
+                after_json TEXT,
+                note TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_audit_log_transaction
+            ON audit_log(transaction_id)
+        """)
+
+        # ----------------------------------------------------
+        # Migration: void columns on old databases (Issue #1)
+        #
+        # Databases created before the audit-log feature have
+        # no voided/voided_at columns on transactions. Add them
+        # so undo can mark entries void instead of deleting them.
+        # ----------------------------------------------------
+
+        cursor.execute("PRAGMA table_info(transactions)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+
+        if "voided" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE transactions "
+                "ADD COLUMN voided INTEGER NOT NULL DEFAULT 0"
+            )
+
+        if "voided_at" not in existing_columns:
+            cursor.execute(
+                "ALTER TABLE transactions ADD COLUMN voided_at TEXT"
+            )
+
         # Save changes
         connection.commit()
 

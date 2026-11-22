@@ -1,3 +1,16 @@
+# Unreleased (Issue #1 — audit log / undo)
+
+- **Audit log** (`audit_log` table): every ledger write records actor, action and
+  before/after snapshots. `initialize_database()` creates the table and migrates
+  old databases (adds `voided` / `voided_at` to `transactions`).
+- **Undo last entry** (`void_transaction`, `undo_last_transaction`, Ledger page
+  button with confirm step): voids the latest entry — balance and totals are
+  restored, the entry stays visible in the ledger marked void, never deleted.
+  Voiding a sale+payment's payment only voids the payment; undo again for the sale.
+- All balance/total paths ignore voided rows (`get_customer_balance`,
+  `get_customer_ledger`, totals, outstanding customers, customer summaries).
+- 13 new tests in `tests/test_audit_log.py` (42 total).
+
 # Changes in v1.0.0 (Oct 19, 2026)
 
 ## Data integrity
