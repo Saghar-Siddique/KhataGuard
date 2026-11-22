@@ -293,6 +293,11 @@ def _call_existing_parser(
 
 def normalize_parser_result(result: Any) -> ParsedTransaction:
     """Validate the minimum contract expected from the existing Part 3 parser."""
+    return _normalize_one_result(result)
+
+
+def _normalize_one_result(result: Any) -> ParsedTransaction:
+    """Validate one parsed transaction dict (shared by single/batch paths)."""
     if not isinstance(result, dict):
         raise MediaProcessingError("AI parser ka response valid object nahi hai.")
 
@@ -330,6 +335,20 @@ def normalize_parser_result(result: Any) -> ParsedTransaction:
     return ParsedTransaction(customer=customer.strip(), sale=sale, paid=paid)
 
 
+def normalize_parser_results(result: Any) -> list[ParsedTransaction]:
+    """Validate a multi-transaction parser answer (Issue #2).
+
+    Accepts a list of transaction dicts, or a single dict (one-item batch).
+    """
+    if isinstance(result, dict):
+        return [_normalize_one_result(result)]
+    if isinstance(result, list):
+        if not result:
+            raise MediaProcessingError("AI ne koi transaction nahi di.")
+        return [_normalize_one_result(item) for item in result]
+    raise MediaProcessingError("AI parser ka response valid list nahi hai.")
+
+
 def parse_with_existing_ai(
     *,
     text: str,
@@ -358,3 +377,39 @@ def parse_with_existing_ai(
             raise MediaProcessingError(_groq_error_message(status, detail, "AI parser")) from exc
         raise MediaProcessingError(f"AI parser failed ({type(exc).__name__}): {detail}") from exc
     return normalize_parser_result(raw)
+
+
+def parse_many_with_existing_ai(
+    *,
+    text: str,
+    parser: Callable[..., Any],
+    api_key: str,
+    text_model: str,
+) -> list[ParsedTransaction]:
+    """Parse every transaction in one input via a multi-transaction parser (Issue #2).
+
+    Same call/error handling as parse_with_existing_ai, but returns a list —
+    one ParsedTransaction per customer action. A single-transaction input
+    returns a one-item list.
+    """
+    if not text or not text.strip():
+        raise MediaProcessingError("AI ko bhejne ke liye text khaali hai.")
+    try:
+        raw = _call_existing_parser(
+            parser,
+            text.strip(),
+            api_key=api_key,
+            model=text_model,
+        )
+    except MediaProcessingError:
+        raise
+    except ValueError as exc:
+        # Parser's own user-facing messages (e.g. its clarification question) must not be hidden.
+        raise MediaProcessingError(str(exc) or "Transaction ki details clear nahi hain.") from exc
+    except Exception as exc:
+        status = getattr(exc, "status_code", None)
+        detail = str(exc)[:300]
+        if isinstance(status, int):
+            raise MediaProcessingError(_groq_error_message(status, detail, "AI parser")) from exc
+        raise MediaProcessingError(f"AI parser failed ({type(exc).__name__}): {detail}") from exc
+    return normalize_parser_results(raw)

@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![CI](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-29%20passed-brightgreen)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-58%20passed-brightgreen)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Groq](https://img.shields.io/badge/AI-Groq%20%7C%20Whisper-F55036)](https://groq.com/)
 
@@ -24,7 +24,7 @@ Pakistani shopkeepers actually work — no typing, no English required.
 - 💰 **Transactions** — overpayment guard with explicit advance-payment flow
 - 📒 **Ledger** — per-customer history
 - 📊 **Reports** — Plotly charts + PDF statements (ReportLab)
-- 🧪 **Quality** — 29 regression tests, 32-case parser eval (**84% accuracy**, measured Oct 2026); CI runs the suite on every push and PR
+- 🧪 **Quality** — 58 regression tests, 36-case parser eval (20 extract + 4 multi-transaction + 12 clarify; live accuracy re-run pending — needs GROQ_API_KEY; the original 32 cases measured 84% in Oct 2026); CI runs the suite on every push and PR
   (Urdu / Roman Urdu / English, incl. must-clarify and prompt-injection cases)
 
 ## Screenshots
@@ -97,6 +97,5 @@ LocalTunnel. Put your Groq key in Colab Secrets (never in the notebook).
 ## Known limitations
 
 - No authentication; SQLite on ephemeral hosts (Colab / Streamlit Cloud) loses data
-- One transaction per input (multi-entry page photos are rejected)
 - No API cost guard
 - Urdu text in PDF statements needs an Arabic-shaping font (falls back to Helvetica)
