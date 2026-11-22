@@ -24,7 +24,7 @@ Pakistani shopkeepers actually work — no typing, no English required.
 - 💰 **Transactions** — overpayment guard with explicit advance-payment flow
 - 📒 **Ledger** — per-customer history
 - 📊 **Reports** — Plotly charts + PDF statements (ReportLab)
-- 🧪 **Quality** — 58 regression tests, 36-case parser eval (20 extract + 4 multi-transaction + 12 clarify; live accuracy re-run pending — needs GROQ_API_KEY; the original 32 cases measured 84% in Oct 2026); CI runs the suite on every push and PR
+- 🧪 **Quality** — 81 regression tests, 36-case parser eval (20 extract + 4 multi-transaction + 12 clarify; live accuracy 36/36 = 100% measured Nov 2026 on Groq openai/gpt-oss-20b, after injection-hardening and ambiguity fixes; the original 32 cases measured 84% in Oct 2026); CI runs the suite on every push and PR
   (Urdu / Roman Urdu / English, incl. must-clarify and prompt-injection cases)
 
 ## Screenshots
@@ -64,7 +64,7 @@ backend/
   ai/                   # Groq-powered transaction parser
   features/             # voice/OCR matching, media, reports, demo-data seeding
 tests/                  # regression tests (pytest)
-evals/                  # parser accuracy eval (32 cases)
+evals/                  # parser accuracy eval (36 cases)
 requirements.txt
 KhataGuard_Mobile_Test.ipynb   # phone testing via Google Colab + LocalTunnel
 CHANGES.md                     # release notes (v1.0.0)
