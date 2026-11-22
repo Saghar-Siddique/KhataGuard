@@ -123,6 +123,45 @@ def initialize_database():
         """)
 
         # ----------------------------------------------------
+        # API Usage Table (Issue #3 — cost guard)
+        #
+        # One row per paid Groq call (STT, parser chat, vision
+        # OCR) plus one row per blocked attempt (kind
+        # "cap_blocked", cost 0). cost_pkr is an ESTIMATE from
+        # Groq's published rates, not a bill.
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                kind TEXT NOT NULL,
+                cost_pkr REAL NOT NULL DEFAULT 0,
+                detail TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_api_usage_created
+            ON api_usage(created_at)
+        """)
+
+        # ----------------------------------------------------
+        # Settings Table (Issue #3 — cost guard)
+        #
+        # Simple key/value store. Only key used today:
+        # "daily_limit_pkr" (default 50.0).
+        # ----------------------------------------------------
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # ----------------------------------------------------
         # Migration: void columns on old databases (Issue #1)
         #
         # Databases created before the audit-log feature have

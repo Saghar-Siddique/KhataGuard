@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![CI](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml/badge.svg)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-58%20passed-brightgreen)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-103%20passed-brightgreen)](https://github.com/Saghar-Siddique/KhataGuard/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Groq](https://img.shields.io/badge/AI-Groq%20%7C%20Whisper-F55036)](https://groq.com/)
 
@@ -24,7 +24,8 @@ Pakistani shopkeepers actually work — no typing, no English required.
 - 💰 **Transactions** — overpayment guard with explicit advance-payment flow
 - 📒 **Ledger** — per-customer history
 - 📊 **Reports** — Plotly charts + PDF statements (ReportLab)
-- 🧪 **Quality** — 81 regression tests, 36-case parser eval (20 extract + 4 multi-transaction + 12 clarify; live accuracy 36/36 = 100% measured Nov 2026 on Groq openai/gpt-oss-20b, after injection-hardening and ambiguity fixes; the original 32 cases measured 84% in Oct 2026); CI runs the suite on every push and PR
+- 💸 **Cost guard (Issue #3)** — daily AI spend limit, default Rs 50/day, changeable in Settings; voice and image are blocked once the cap is hit (the block is logged) and text entry keeps working as the fallback. Spend is estimated from Groq's published rates (Whisper turbo $0.04/audio hour, gpt-oss-20b $0.075/$0.30 per 1M tokens) — estimates, not a bill. TTS is not in the app yet; it will use the same guard when added.
+- 🧪 **Quality** — 103 regression tests, 36-case parser eval (20 extract + 4 multi-transaction + 12 clarify; live accuracy 36/36 = 100% measured Nov 2026 on Groq openai/gpt-oss-20b, after injection-hardening and ambiguity fixes; the original 32 cases measured 84% in Oct 2026); CI runs the suite on every push and PR
   (Urdu / Roman Urdu / English, incl. must-clarify and prompt-injection cases)
 
 ## Screenshots

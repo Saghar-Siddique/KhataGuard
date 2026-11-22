@@ -12,6 +12,7 @@ from backend.core import (
     record_payment,
     record_sale,
 )
+from backend.features import cost_guard
 from backend.features.integration import save_confirmed_transactions
 from backend.features.matching import rank_customers
 from backend.features.media import (
@@ -71,6 +72,19 @@ api_key = setting("GROQ_API_KEY")
 if not api_key:
     st.warning("Streamlit Secrets mein GROQ_API_KEY add karein. Manual database data ko yeh page change nahi karta.")
 
+# Issue #3 — daily AI cost guard: show today's spend and block voice/image
+# when the cap is hit. Text entry below keeps working as the fallback.
+daily_limit = cost_guard.get_daily_limit_pkr()
+today_spend = cost_guard.get_today_spend_pkr()
+capped = today_spend >= daily_limit
+st.caption(f"Today's AI spend: Rs {today_spend:.2f} / Rs {daily_limit:.0f} daily limit")
+if capped:
+    st.error(
+        f"Aaj ki Rs {daily_limit:.0f} daily AI limit khatam ho gayi hai "
+        f"(spend Rs {today_spend:.2f}). Voice aur image band hain — "
+        "neeche text se entry karein."
+    )
+
 voice_tab, image_tab = st.tabs(["🎤 Voice", "🖼️ Handwritten Image"])
 
 with voice_tab:
@@ -87,7 +101,7 @@ with voice_tab:
 
     left, right = st.columns(2)
     with left:
-        if st.button("Process live recording", use_container_width=True, disabled=live_audio is None or not api_key):
+        if st.button("Process live recording", use_container_width=True, disabled=live_audio is None or not api_key or capped):
             try:
                 with st.spinner("Voice transcribe aur parse ho rahi hai..."):
                     text = transcribe_audio(
@@ -104,7 +118,7 @@ with voice_tab:
                 st.error(str(exc))
 
     with right:
-        if st.button("Process uploaded audio", use_container_width=True, disabled=uploaded_audio is None or not api_key):
+        if st.button("Process uploaded audio", use_container_width=True, disabled=uploaded_audio is None or not api_key or capped):
             try:
                 with st.spinner("Uploaded audio transcribe aur parse ho rahi hai..."):
                     text = transcribe_audio(
@@ -127,13 +141,30 @@ with voice_tab:
         disabled=True,
     )
 
+    # Issue #3 fallback: text entry keeps working even when the cap is hit.
+    st.divider()
+    st.subheader("⌨️ Text se entry (voice limit khatam hone par bhi kaam karta hai)")
+    typed_text = st.text_area(
+        "Transaction likhein, jaise: Ahmed ne 5000 ka saman liya aur 2000 diye",
+        value="",
+        height=80,
+        key="p4_typed_text",
+    )
+    if st.button("Parse typed text", use_container_width=True, disabled=not typed_text.strip() or not api_key):
+        try:
+            with st.spinner("Text parse ho raha hai..."):
+                set_drafts(typed_text.strip(), "text")
+            st.success("Draft ready hai. Neeche verify karein.")
+        except Exception as exc:
+            st.error(str(exc))
+
 with image_tab:
     st.subheader("Handwritten Khata Image → OCR → Existing AI Parser")
     st.caption("Vision model sirf image ko text mein read karta hai; transaction rules Part 3 parser hi apply karta hai.")
     image = st.file_uploader("Upload ledger image", type=["png", "jpg", "jpeg"], key="p4_image")
     if image is not None:
         st.image(image, caption="Uploaded ledger page", width=500)
-    if st.button("Read & understand image", use_container_width=True, disabled=image is None or not api_key):
+    if st.button("Read & understand image", use_container_width=True, disabled=image is None or not api_key or capped):
         try:
             with st.spinner("Handwriting read aur transaction parse ho rahi hai..."):
                 ocr_text = ocr_handwritten_image(

@@ -9,6 +9,11 @@ from decimal import Decimal, InvalidOperation
 # Groq account in this project rejects outputs near 1,000 tokens, so stay below it.
 MAX_OUTPUT_TOKENS = 900
 
+# Last chat-completion usage reported by Groq (Issue #3 — cost guard).
+# _groq_json_response updates this after every successful call so the
+# caller can record the estimated cost. Empty until the first call.
+LAST_USAGE: dict = {"call_id": 0, "model": "", "prompt_tokens": 0, "completion_tokens": 0}
+
 
 def _setting(name: str, default: str = "") -> str:
     try:
@@ -325,4 +330,19 @@ def _groq_json_response(text: str, system_prompt: str, api_key: str, model: str 
             "AI ran out of output tokens before answering. Try again, or set "
             "GROQ_REASONING_EFFORT = \"low\" in your secrets."
         )
+    # Stash token usage for the cost guard (Issue #3). Absent on mocked
+    # clients and older responses; never fail the parse over it.
+    try:
+        usage = getattr(response, "usage", None)
+        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        if prompt_tokens or completion_tokens:
+            LAST_USAGE.update({
+                "call_id": LAST_USAGE.get("call_id", 0) + 1,
+                "model": model_name,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+            })
+    except (TypeError, ValueError, AttributeError):
+        pass
     return choice.message.content
